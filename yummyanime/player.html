@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YummyAnime Video Player</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .player-container {
+            width: 100%;
+            max-width: 1200px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%; /* 16:9 aspect ratio */
+            background: #000;
+        }
+
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+
+        .controls {
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #ff6b6b;
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+        .progress-buffer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            width: 0%;
+        }
+
+        .controls-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .playback-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-button {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .control-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        .control-button:focus {
+            outline: 2px solid #ff6b6b;
+            outline-offset: 2px;
+        }
+
+        .control-button:active {
+            transform: scale(0.95);
+        }
+
+        .control-button[aria-label] {
+            position: relative;
+        }
+
+        .tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            margin-bottom: 8px;
+            z-index: 1000;
+        }
+
+        .control-button:hover .tooltip {
+            opacity: 1;
+        }
+
+        .time-display {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            min-width: 100px;
+        }
+
+        .quality-selector {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quality-button {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .quality-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .quality-button:focus {
+            outline: 2px solid #ff6b6b;
+            outline-offset: 2px;
+        }
+
+        .quality-button.active {
+            background: #ff6b6b;
+            border-color: #ff6b6b;
+        }
+
+        .quality-button.auto {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+        }
+
+        .quality-button.auto.active {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+
+        @media (max-width: 768px) {
+            .controls-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .quality-selector {
+                margin-left: 0;
+                justify-content: center;
+            }
+
+            .playback-controls {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container">
+        <div class="video-wrapper">
+            <video id="videoPlayer" preload="metadata">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        <div class="controls">
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-buffer" id="progressBuffer"></div>
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="controls-row">
+                <div class="playback-controls">
+                    <button class="control-button" id="rewindBtn" aria-label="rewind 5 seconds">
+                        ⏪
+                        <span class="tooltip">⏪ Rewind 5 seconds.</span>
+                    </button>
+                    <button class="control-button" id="playPauseBtn" aria-label="play pause">
+                        ▶
+                        <span class="tooltip">Pause</span>
+                    </button>
+                    <button class="control-button" id="forwardBtn" aria-label="skip forward 5 seconds">
+                        ⏩
+                        <span class="tooltip">⏩ Forward 5 seconds / double-click for next episode.</span>
+                    </button>
+                </div>
+                <div class="time-display" id="timeDisplay">00:00 / 00:00</div>
+                <div class="quality-selector" id="qualitySelector">
+                    <button class="quality-button auto active" id="autoQualityBtn">Auto</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class YummyAnimePlayer {
+            constructor() {
+                this.video = document.getElementById('videoPlayer');
+                this.progressBar = document.getElementById('progressBar');
+                this.progressBuffer = document.getElementById('progressBuffer');
+                this.progressContainer = document.getElementById('progressContainer');
+                this.playPauseBtn = document.getElementById('playPauseBtn');
+                this.rewindBtn = document.getElementById('rewindBtn');
+                this.forwardBtn = document.getElementById('forwardBtn');
+                this.timeDisplay = document.getElementById('timeDisplay');
+                this.qualitySelector = document.getElementById('qualitySelector');
+                this.autoQualityBtn = document.getElementById('autoQualityBtn');
+
+                // Player state
+                this.currentQuality = 'auto';
+                this.qualities = null;
+                this.autoMode = true;
+                this.bandwidth = null;
+                this.bufferCheckInterval = null;
+                this.qualityCheckInterval = null;
+                this.stableConnectionTime = 0;
+                this.lastBufferCheck = Date.now();
+
+                // Forward button state for double-click detection
+                this.forwardClickTimeout = null;
+                this.forwardLongPressTimeout = null;
+                this.forwardTouchStartTime = null;
+
+                this.initializeEventListeners();
+            }
+
+            parseQualities(qualitiesData) {
+                // Convert API response to player format
+                const qualities = {
+                    p240: qualitiesData.p240 ? { url: qualitiesData.p240.url, ref: qualitiesData.p240.ref } : null,
+                    p360: qualitiesData.p360 ? { url: qualitiesData.p360.url, ref: qualitiesData.p360.ref } : null,
+                    p480: qualitiesData.p480 ? { url: qualitiesData.p480.url, ref: qualitiesData.p480.ref } : null,
+                    p720: qualitiesData.p720 ? { url: qualitiesData.p720.url, ref: qualitiesData.p720.ref } : null,
+                    p1080: qualitiesData.p1080 ? { url: qualitiesData.p1080.url, ref: qualitiesData.p1080.ref } : null
+                };
+                return qualities;
+            }
+
+            // Alternative method: load episode with pre-loaded data
+            async loadEpisodeWithData(qualitiesData, initialQuality = 'auto') {
+                this.qualities = this.parseQualities(qualitiesData);
+                this.buildQualitySelector();
+
+                if (this.autoMode) {
+                    await this.measureBandwidth();
+                    const optimalQuality = this.selectOptimalQuality();
+                    this.loadQuality(optimalQuality);
+                    this.startQualityMonitoring();
+                } else {
+                    this.loadQuality(initialQuality);
+                }
+            }
+
+            initializeEventListeners() {
+                // Video events
+                this.video.addEventListener('loadedmetadata', () => this.updateTimeDisplay());
+                this.video.addEventListener('timeupdate', () => this.updateProgress());
+                this.video.addEventListener('progress', () => this.updateBuffer());
+                this.video.addEventListener('play', () => this.updatePlayPauseButton());
+                this.video.addEventListener('pause', () => this.updatePlayPauseButton());
+                this.video.addEventListener('waiting', () => this.onBuffering());
+                this.video.addEventListener('playing', () => this.onPlaying());
+
+                // Control buttons
+                this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
+                this.rewindBtn.addEventListener('click', () => this.rewind(5));
+                this.forwardBtn.addEventListener('click', () => this.handleForwardClick());
+                this.forwardBtn.addEventListener('dblclick', (e) => {
+                    e.preventDefault();
+                    this.goToNextEpisode();
+                });
+
+                // Touch events for long press
+                this.forwardBtn.addEventListener('touchstart', (e) => this.handleTouchStart(e));
+                this.forwardBtn.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+
+                // Keyboard accessibility
+                this.rewindBtn.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        this.rewind(5);
+                    }
+                });
+                this.forwardBtn.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        this.skipForward(5);
+                    }
+                });
+
+                // Progress bar
+                this.progressContainer.addEventListener('click', (e) => this.seek(e));
+
+                // Auto quality button
+                this.autoQualityBtn.addEventListener('click', () => this.toggleAutoQuality());
+            }
+
+            async loadEpisode(apiEndpoint, slug, episodeIndex) {
+                try {
+                    // Get anime data with videos from backend API
+                    const response = await fetch(`${apiEndpoint}/anime/${slug}?need_videos=1`);
+                    const animeResponse = await response.json();
+                    const anime = animeResponse.response;
+
+                    if (!anime.videos || !anime.videos[episodeIndex]) {
+                        throw new Error('Episode not found');
+                    }
+
+                    const video = anime.videos[episodeIndex];
+                    
+                    // Get video qualities from backend
+                    const qualitiesResponse = await fetch(`${apiEndpoint}/anime/${slug}/video/${episodeIndex}/qualities`);
+                    const qualitiesData = await qualitiesResponse.json();
+                    this.qualities = this.parseQualities(qualitiesData);
+
+                    // Build quality selector
+                    this.buildQualitySelector();
+
+                    // Start auto quality if enabled
+                    if (this.autoMode) {
+                        await this.startAutoQuality();
+                    } else {
+                        // Load default quality
+                        const defaultQuality = this.getDefaultQuality();
+                        this.loadQuality(defaultQuality);
+                    }
+                } catch (error) {
+                    console.error('Error loading episode:', error);
+                    alert('Failed to load episode: ' + error.message);
+                }
+            }
+
+            buildQualitySelector() {
+                // Clear existing quality buttons (except Auto)
+                const existingButtons = this.qualitySelector.querySelectorAll('.quality-button:not(.auto)');
+                existingButtons.forEach(btn => btn.remove());
+
+                // Add quality buttons
+                const qualityOrder = ['1080', '720', '480', '360', '240'];
+                qualityOrder.forEach(quality => {
+                    const qualityProp = `p${quality}`;
+                    if (this.qualities[qualityProp]) {
+                        const btn = document.createElement('button');
+                        btn.className = 'quality-button';
+                        btn.textContent = quality + 'p';
+                        btn.setAttribute('data-quality', quality);
+                        btn.addEventListener('click', () => this.selectQuality(quality));
+                        this.qualitySelector.insertBefore(btn, this.autoQualityBtn);
+                    }
+                });
+            }
+
+            async startAutoQuality() {
+                // Measure bandwidth
+                await this.measureBandwidth();
+
+                // Select optimal quality
+                const optimalQuality = this.selectOptimalQuality();
+                this.loadQuality(optimalQuality);
+
+                // Start monitoring
+                this.startQualityMonitoring();
+            }
+
+            async measureBandwidth() {
+                if (!this.qualities) return;
+
+                // Find a quality to test with (prefer 720p or 480p)
+                const testQuality = this.qualities.p720 || this.qualities.p480 || this.qualities.p360;
+                if (!testQuality) return;
+
+                try {
+                    const startTime = performance.now();
+                    const response = await fetch(testQuality.url, {
+                        method: 'HEAD',
+                        headers: {
+                            'Range': 'bytes=0-204800' // 200 KB
+                        }
+                    });
+                    const endTime = performance.now();
+
+                    if (response.ok) {
+                        const duration = (endTime - startTime) / 1000; // seconds
+                        const bytes = 204800; // 200 KB
+                        this.bandwidth = (bytes * 8) / duration; // bits per second
+                    }
+                } catch (error) {
+                    console.error('Bandwidth test failed:', error);
+                    // Fallback to conservative estimate
+                    this.bandwidth = 2000000; // 2 Mbps
+                }
+            }
+
+            selectOptimalQuality() {
+                if (!this.bandwidth || !this.qualities) {
+                    return this.getDefaultQuality();
+                }
+
+                const playerHeight = this.video.clientHeight;
+                const devicePixelRatio = window.devicePixelRatio || 1;
+                const maxHeight = playerHeight * devicePixelRatio;
+
+                // Quality order from highest to lowest
+                const qualityOrder = [
+                    { key: '1080', prop: 'p1080', height: 1080, bitrate: 5000000 },
+                    { key: '720', prop: 'p720', height: 720, bitrate: 3000000 },
+                    { key: '480', prop: 'p480', height: 480, bitrate: 1500000 },
+                    { key: '360', prop: 'p360', height: 360, bitrate: 800000 },
+                    { key: '240', prop: 'p240', height: 240, bitrate: 400000 }
+                ];
+
+                // Select highest quality where bitrate < 0.7 * bandwidth and height <= maxHeight
+                for (const quality of qualityOrder) {
+                    if (this.qualities[quality.prop] && 
+                        quality.bitrate < 0.7 * this.bandwidth && 
+                        quality.height <= maxHeight) {
+                        return quality.key;
+                    }
+                }
+
+                // Fallback to lowest available
+                return this.getDefaultQuality();
+            }
+
+            getDefaultQuality() {
+                if (!this.qualities) return '360';
+                
+                if (this.qualities.p720) return '720';
+                if (this.qualities.p480) return '480';
+                if (this.qualities.p360) return '360';
+                if (this.qualities.p240) return '240';
+                return '360';
+            }
+
+            loadQuality(quality) {
+                if (!this.qualities) return;
+
+                const qualityProp = `p${quality}`;
+                const qualityObj = this.qualities[qualityProp];
+                
+                if (!qualityObj) {
+                    console.error(`Quality ${quality}p not available`);
+                    return;
+                }
+
+                this.currentQuality = quality;
+                this.video.src = qualityObj.url;
+                this.video.load();
+
+                // Update UI
+                this.updateQualityButtons();
+            }
+
+            updateQualityButtons() {
+                const buttons = this.qualitySelector.querySelectorAll('.quality-button');
+                buttons.forEach(btn => {
+                    if (btn.classList.contains('auto')) {
+                        btn.classList.toggle('active', this.autoMode);
+                    } else {
+                        btn.classList.toggle('active', btn.getAttribute('data-quality') === this.currentQuality);
+                    }
+                });
+            }
+
+            selectQuality(quality) {
+                this.autoMode = false;
+                this.currentQuality = quality;
+                this.loadQuality(quality);
+                this.stopQualityMonitoring();
+            }
+
+            toggleAutoQuality() {
+                this.autoMode = !this.autoMode;
+                this.updateQualityButtons();
+
+                if (this.autoMode) {
+                    // Restart auto quality
+                    const optimalQuality = this.selectOptimalQuality();
+                    this.loadQuality(optimalQuality);
+                    this.startQualityMonitoring();
+                } else {
+                    this.stopQualityMonitoring();
+                }
+            }
+
+            startQualityMonitoring() {
+                if (this.bufferCheckInterval) return;
+
+                // Check buffer every 10 seconds
+                this.bufferCheckInterval = setInterval(() => {
+                    this.checkBufferAndAdjust();
+                }, 10000);
+
+                // Check connection stability every 5 seconds
+                this.qualityCheckInterval = setInterval(() => {
+                    this.checkConnectionStability();
+                }, 5000);
+            }
+
+            stopQualityMonitoring() {
+                if (this.bufferCheckInterval) {
+                    clearInterval(this.bufferCheckInterval);
+                    this.bufferCheckInterval = null;
+                }
+                if (this.qualityCheckInterval) {
+                    clearInterval(this.qualityCheckInterval);
+                    this.qualityCheckInterval = null;
+                }
+                this.stableConnectionTime = 0;
+            }
+
+            checkBufferAndAdjust() {
+                if (!this.autoMode || !this.video.buffered.length) return;
+
+                const bufferedEnd = this.video.buffered.end(this.video.buffered.length - 1);
+                const currentTime = this.video.currentTime;
+                const buffer = bufferedEnd - currentTime;
+
+                // If buffer < 6 seconds, switch to lower quality
+                if (buffer < 6) {
+                    this.switchToLowerQuality();
+                }
+            }
+
+            checkConnectionStability() {
+                if (!this.autoMode) return;
+
+                const bufferedEnd = this.video.buffered.length ? 
+                    this.video.buffered.end(this.video.buffered.length - 1) : 0;
+                const currentTime = this.video.currentTime;
+                const buffer = bufferedEnd - currentTime;
+
+                // If buffer is healthy (> 10 seconds), increment stable time
+                if (buffer > 10) {
+                    this.stableConnectionTime += 5; // Add 5 seconds (check interval)
+
+                    // If stable for more than 30 seconds, try higher quality
+                    if (this.stableConnectionTime > 30) {
+                        this.switchToHigherQuality();
+                        this.stableConnectionTime = 0; // Reset after switch
+                    }
+                } else {
+                    this.stableConnectionTime = 0; // Reset if buffer is low
+                }
+            }
+
+            switchToLowerQuality() {
+                const qualityOrder = ['1080', '720', '480', '360', '240'];
+                const currentIndex = qualityOrder.indexOf(this.currentQuality);
+                
+                if (currentIndex < qualityOrder.length - 1) {
+                    const lowerQuality = qualityOrder[currentIndex + 1];
+                    if (this.qualities[`p${lowerQuality}`]) {
+                        this.loadQuality(lowerQuality);
+                    }
+                }
+            }
+
+            switchToHigherQuality() {
+                const qualityOrder = ['1080', '720', '480', '360', '240'];
+                const currentIndex = qualityOrder.indexOf(this.currentQuality);
+                
+                if (currentIndex > 0) {
+                    const higherQuality = qualityOrder[currentIndex - 1];
+                    if (this.qualities[`p${higherQuality}`]) {
+                        // Check if it meets bandwidth requirements
+                        const qualityHeights = { '1080': 1080, '720': 720, '480': 480, '360': 360, '240': 240 };
+                        const qualityBitrates = { '1080': 5000000, '720': 3000000, '480': 1500000, '360': 800000, '240': 400000 };
+                        
+                        const playerHeight = this.video.clientHeight;
+                        const devicePixelRatio = window.devicePixelRatio || 1;
+                        const maxHeight = playerHeight * devicePixelRatio;
+                        const bitrate = qualityBitrates[higherQuality];
+
+                        if (this.bandwidth && bitrate < 0.7 * this.bandwidth && qualityHeights[higherQuality] <= maxHeight) {
+                            this.loadQuality(higherQuality);
+                        }
+                    }
+                }
+            }
+
+            togglePlayPause() {
+                if (this.video.paused) {
+                    this.video.play();
+                } else {
+                    this.video.pause();
+                }
+            }
+
+            updatePlayPauseButton() {
+                this.playPauseBtn.textContent = this.video.paused ? '▶' : '⏸';
+                this.playPauseBtn.querySelector('.tooltip').textContent = this.video.paused ? 'Play' : 'Pause';
+            }
+
+            rewind(seconds) {
+                this.video.currentTime = Math.max(0, this.video.currentTime - seconds);
+            }
+
+            skipForward(seconds) {
+                this.video.currentTime = Math.min(this.video.duration, this.video.currentTime + seconds);
+            }
+
+            handleForwardClick() {
+                // Clear any existing timeout
+                if (this.forwardClickTimeout) {
+                    clearTimeout(this.forwardClickTimeout);
+                    this.forwardClickTimeout = null;
+                    // Double click detected - go to next episode
+                    this.goToNextEpisode();
+                } else {
+                    // Single click - skip forward
+                    this.skipForward(5);
+                    // Set timeout to detect double click
+                    this.forwardClickTimeout = setTimeout(() => {
+                        this.forwardClickTimeout = null;
+                    }, 300);
+                }
+            }
+
+            handleTouchStart(e) {
+                this.forwardTouchStartTime = Date.now();
+                this.forwardLongPressTimeout = setTimeout(() => {
+                    this.goToNextEpisode();
+                }, 400);
+            }
+
+            handleTouchEnd(e) {
+                if (this.forwardLongPressTimeout) {
+                    clearTimeout(this.forwardLongPressTimeout);
+                    this.forwardLongPressTimeout = null;
+                }
+                
+                if (this.forwardTouchStartTime) {
+                    const touchDuration = Date.now() - this.forwardTouchStartTime;
+                    if (touchDuration < 400) {
+                        // Short tap - skip forward
+                        this.skipForward(5);
+                    }
+                    this.forwardTouchStartTime = null;
+                }
+            }
+
+            goToNextEpisode() {
+                // This should be implemented by the parent application
+                // to navigate to the next episode
+                if (window.onNextEpisode) {
+                    window.onNextEpisode();
+                } else {
+                    console.log('Next episode requested');
+                }
+            }
+
+            seek(e) {
+                const rect = this.progressContainer.getBoundingClientRect();
+                const pos = (e.clientX - rect.left) / rect.width;
+                this.video.currentTime = pos * this.video.duration;
+            }
+
+            updateProgress() {
+                if (this.video.duration) {
+                    const percent = (this.video.currentTime / this.video.duration) * 100;
+                    this.progressBar.style.width = percent + '%';
+                }
+                this.updateTimeDisplay();
+            }
+
+            updateBuffer() {
+                if (this.video.buffered.length && this.video.duration) {
+                    const bufferedEnd = this.video.buffered.end(this.video.buffered.length - 1);
+                    const percent = (bufferedEnd / this.video.duration) * 100;
+                    this.progressBuffer.style.width = percent + '%';
+                }
+            }
+
+            updateTimeDisplay() {
+                const current = this.formatTime(this.video.currentTime);
+                const duration = this.formatTime(this.video.duration || 0);
+                this.timeDisplay.textContent = `${current} / ${duration}`;
+            }
+
+            formatTime(seconds) {
+                if (isNaN(seconds)) return '00:00';
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                const s = Math.floor(seconds % 60);
+                if (h > 0) {
+                    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                }
+                return `${m}:${s.toString().padStart(2, '0')}`;
+            }
+
+            onBuffering() {
+                // Video is buffering
+            }
+
+            onPlaying() {
+                // Video is playing
+            }
+        }
+
+        // Initialize player when DOM is ready
+        let player;
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                player = new YummyAnimePlayer();
+                window.yummyPlayer = player;
+            });
+        } else {
+            player = new YummyAnimePlayer();
+            window.yummyPlayer = player;
+        }
+
+        // Example usage functions
+        window.loadEpisode = async function(apiEndpoint, slug, episodeIndex) {
+            if (player) {
+                await player.loadEpisode(apiEndpoint, slug, episodeIndex);
+            }
+        };
+
+        window.loadEpisodeWithData = async function(qualitiesData, initialQuality) {
+            if (player) {
+                await player.loadEpisodeWithData(qualitiesData, initialQuality);
+            }
+        };
+    </script>
+</body>
+</html>
